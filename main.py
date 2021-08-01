@@ -1,6 +1,7 @@
 import argparse
 import requests
 import xlsxwriter
+import os
 
 ALL_POSSIBLE_CATEGORIES = ['accessory', 'armour', 'weapon', 'jewel', 'uniqueMap', '']
 
@@ -63,7 +64,8 @@ def init_argparse() -> argparse.ArgumentParser:
     parser.add_argument("-cf", "--custom-filename",
                         help="Work only in pair with --generate-table(-gt). Provides custom filename for generated table.",
                         )
-
+    parser.add_argument('-if', '--import-file',
+                        help="Use custom excel table. File must be in the same folder as script")
     return parser
 
 
@@ -85,6 +87,11 @@ def main():
             custom_filename = args.custom_filename[0]
         flipper.generate_items_table(args.generate_table, custom_filename)
 
+    if args.import_file:
+        if not os.path.isfile(args.import_file):
+            print("{} Not found".format(args.import_file))
+            return 0
+        pass
 
 if __name__ == "__main__":
     main()
