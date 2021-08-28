@@ -5,7 +5,6 @@ import openpyxl
 from json.decoder import JSONDecodeError
 from typing import List
 
-ALL_POSSIBLE_CATEGORIES = ['accessory', 'armour', 'weapon', 'jewel', 'uniqueMap']
 POETRADE_HEADERS = {'User-Agent': 'agent47daun@gmail.com'}
 
 

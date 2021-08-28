@@ -2,6 +2,10 @@ import argparse
 import os
 from flipper import PoeFlipper
 
+
+ALL_POSSIBLE_CATEGORIES = ['accessory', 'armour', 'weapon', 'jewel', 'uniqueMap']
+
+
 def init_argparse() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         usage="%(prog)s [OPTION]...",
@@ -36,7 +40,7 @@ def main():
         return 0
     if args.generate_table:
         custom_filename = "None"
-        for arg in args.generate_table: 
+        for arg in args.generate_table:
             if arg not in ALL_POSSIBLE_CATEGORIES:
                 print("{} category not supported. Skip..".format(arg))
                 args.generate_table.remove(arg)
