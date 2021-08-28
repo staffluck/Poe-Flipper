@@ -4,6 +4,7 @@ import xlsxwriter
 import os
 import openpyxl
 from json.decoder import JSONDecodeError
+from typing import List
 
 ALL_POSSIBLE_CATEGORIES = ['accessory', 'armour', 'weapon', 'jewel', 'uniqueMap']
 POETRADE_HEADERS = {'User-Agent': 'agent47daun@gmail.com'}
@@ -23,7 +24,54 @@ class PoeFlipper:
         self.poetrade_fetch = "https://www.pathofexile.com/api/trade/fetch/{}?query={}"
         self.poetrade_stats = "https://www.pathofexile.com/api/trade/data/stats"
 
-    def parse_items_data(self) -> None:
+    def convert_items_data(self) -> None:
+
+        # Converting items stats into data like POETRADE_ITEM_ID:ROLL_RANGE
+        def convert_mod(mod: str) -> List:
+            try:
+                if mod.startswith("(") or mod.startswith("+("):
+                    mod_raw = mod.split("(")[1].split(")")
+                    mod_range = mod_raw[0]
+                    mod_text = "#" + mod_raw[1]
+                    if mod.startswith("+"):
+                        mod_text = "+" + mod_text
+                    mod_range = mod_range.split("-")
+                elif mod.startswith("Socketed Gems are"):
+                    mod_range = [mod[36:39].strip(), ]
+                    mod_text = mod[:36] + " # " + mod[39:]
+                    mod_text = mod_text.replace("  ", " ")
+                elif mod.count("(") == 2:
+                    # How it works:
+                    # mod = Adds (65-75) to (100-110) Physical Damage
+                    # mod.split("(") => ['Adds ', '65-75) to ', '100-110) Physical Damage']
+                    # mod.split("(")[1].split(")") => ('65-75', ' to ')
+                    # mod.split("(")[2].split(")") => ('100-110', ' Physical Damage')
+                    # mod.split("(")[0] + "#" + to + "#" + bonus => Adds # to # Physical Damage
+                    mod_range_first, to = mod.split("(")[1].split(")")
+                    mod_range_second, bonus = mod.split("(")[2].split(")")
+                    mod_range = [mod_range_first.split("-"), mod_range_second.split("-")]
+                    mod_text = mod.split("(")[0] + "#" + to + "#" + bonus
+                else:
+                    mod_raw = mod.split("(")[1].split(")")
+                    mod_range = mod_raw[0]
+                    mod_text = "#" + mod_raw[1]
+            except IndexError:
+                #  Handling mods without range
+                return [False, False]
+
+            try:
+                if converted_stats_mods.get(mod_text):
+                    mod_id = converted_stats_mods[mod_text]
+                elif converted_stats_mods.get(mod_text + " (Local)"):
+                    mod_id = converted_stats_mods[mod_text + " (Local)"]
+                else:
+                    mod_id = converted_stats_mods[mod_text[1:]]
+            except KeyError:
+                #  Handling mods that have no POETRADE_ITEM_ID conversion
+                return [False, False]
+
+            return mod_id, mod_range
+
         try:
             stats_request = requests.get(self.poetrade_stats, headers=POETRADE_HEADERS)
             stats_data = stats_request.json()
@@ -31,12 +79,11 @@ class PoeFlipper:
             print("Stats fetch failed. Try again in 10 sec..")
             raise SystemExit
 
-        converted_stats_explicit = {}
+        converted_stats_mods = {}
         stats = stats_data['result']
-        for i in stats:
-            if i['label'] == "Explicit":
-                for b in i['entries']:
-                    converted_stats_explicit[b['text']] = b['id']
+        for stat in stats:
+            for b in stat['entries']:
+                converted_stats_mods[b['text']] = b['id']
 
         for item in self.parsed_items_data:
             links_price = False  # Price depends on links(6-links)
@@ -46,54 +93,18 @@ class PoeFlipper:
             if item.get('explicits'):
                 explicits = item['explicits'].split("&")
                 for explicit in explicits:
-                    try:
-                        if explicit.startswith("(") or explicit.startswith("+("):
-                            explicit_raw = explicit.split("(")[1].split(")")
-                            explicit_range = explicit_raw[0]
-                            explicit_text = "#" + explicit_raw[1]
-                            if explicit.startswith("+"):
-                                explicit_text = "+" + explicit_text
-                            explicit_range = explicit_range.split("-")
-                        elif explicit.startswith("Socketed Gems are"):
-                            explicit_range = [explicit[36:39].strip(), ]
-                            explicit_text = explicit[:36] + " # " + explicit[39:]
-                            explicit_text = explicit_text.replace("  ", " ")
-                        else:
-                            # How it works:
-                            # explicit = Adds (65-75) to (100-110) Physical Damage" for example
-                            # explicit.split("(") => ['Adds ', '65-75) to ', '100-110) Physical Damage']
-                            # explicit.split("(")[1].split(")") => ('65-75', ' to ')
-                            # explicit.split("(")[2].split(")") => ('100-110', ' Physical Damage')
-                            # explicit.split("(")[0] + "#" + to + "#" + bonus => Adds # to # Physical Damage
-                            explicit_range_first, to = explicit.split("(")[1].split(")")
-                            explicit_range_second, bonus = explicit.split("(")[2].split(")")
-                            explicit_range = [explicit_range_first.split("-"), explicit_range_second.split("-")]
-                            explicit_text = explicit.split("(")[0] + "#" + to + "#" + bonus
-                    except IndexError:
-                        continue
-
-                    try:
-                        if converted_stats_explicit.get(explicit_text):
-                            explicit_id = converted_stats_explicit[explicit_text]
-                        elif converted_stats_explicit.get(explicit_text + " (Local)"):
-                            explicit_id = converted_stats_explicit[explicit_text + " (Local)"]
-                        else:
-                            explicit_id = converted_stats_explicit[explicit_text[1:]]
-                    except KeyError:
+                    explicit_id, explicit_range = convert_mod(explicit)
+                    if not explicit_id:
                         continue
                     explicits_converted[explicit_id] = explicit_range
 
-            #  TODO: converted_stats_implicit
             if item.get('implicits'):
                 implicits = item['implicits'].split("&")
                 for implicit in implicits:
-                    try:
-                        implicit = implicit.split("(")[1].split(")")
-                        implicit_range = implicit[0]
-                    except IndexError:
+                    implicit_id, implicit_range = convert_mod(implicit)
+                    if not implicit_id:
                         continue
-                    implicit_range = implicit_range.split("-")
-                    implicits_converted["#" + implicit[1]] = implicit_range
+                    implicits_converted[implicit_id] = implicit_range
 
             if item['group'] == "bodyarmours":
                 links_price = True
@@ -121,7 +132,7 @@ class PoeFlipper:
                 "implicits": row[4].value,
                 "mean": row[5].value
             })
-        self.parse_items_data()
+        self.convert_items_data()
 
     # def check_price(self, item) -> None:
     #     search_query = {
@@ -236,6 +247,7 @@ def main():
         flipper.generate_items_table(args.generate_table, custom_filename)
 
     flipper.start()
+
 
 if __name__ == "__main__":
     main()
