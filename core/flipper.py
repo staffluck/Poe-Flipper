@@ -1,8 +1,7 @@
 import requests
 import os
-import openpyxl
 from json.decoder import JSONDecodeError
-from typing import List, Tuple
+from typing import List, Optional, Tuple, Union
 
 from core.data_providers import BaseDateProvider, XlsxDataProvider
 from core.models import Item
@@ -12,7 +11,7 @@ POETRADE_HEADERS = {'User-Agent': 'agent47daun@gmail.com'}
 
 class PoeFlipper:
 
-    def __init__(self, league: str, data_provider: BaseDateProvider = XlsxDataProvider, filename="item_table.xlsx"):
+    def __init__(self, league: str, data_provider: Optional[BaseDateProvider] = XlsxDataProvider, filename="item_table.xlsx"):
         self.league: str = league
         self.filename: str = filename
         self.data_provider: BaseDateProvider = data_provider
@@ -24,7 +23,20 @@ class PoeFlipper:
         self.poetrade_fetch = "https://www.pathofexile.com/api/trade/fetch/{}?query={}"
         self.poetrade_stats = "https://www.pathofexile.com/api/trade/data/stats"
 
-    def convert_items_data(self, parsed_items_data: List[dict]) -> None:
+    def _request(self, url, method: str, params: Optional[dict] = None, data: Optional[dict] = None) -> Union[dict, bool]:
+        try:
+            if method == "GET":
+                stats_request = requests.get(url, params=params, headers=POETRADE_HEADERS)
+            else:
+                stats_request = requests.post(url, data=data, headers=POETRADE_HEADERS)
+            stats_data = stats_request.json()
+        except JSONDecodeError as e:
+            print(f"Exception in request to {url}\nAdditional information: {e}")
+            return False
+
+        return stats_data
+
+    def convert_items_data(self, parsed_items_data: List[dict]) -> List[Item]:
 
         # Converting items stats into data like POETRADE_ITEM_ID:ROLL_RANGE
         def convert_mod(mod: str) -> Tuple:
@@ -72,11 +84,8 @@ class PoeFlipper:
 
             return (mod_id, mod_range)
 
-        try:
-            stats_request = requests.get(self.poetrade_stats, headers=POETRADE_HEADERS)
-            stats_data = stats_request.json()
-        except JSONDecodeError:
-            print("Stats fetch failed. Try again in 10 sec..")
+        stats_data = self._request(self.poetrade_stats, "GET")
+        if not stats_data:
             raise SystemExit
 
         converted_stats_mods = {}
@@ -152,11 +161,9 @@ class PoeFlipper:
     def generate_items_table(self, categories_to_flip, custom_filename=None) -> None:
         categories = []
         for category in categories_to_flip:
-            try:
-                request = requests.get(self.poewatch_get_url.format(category))
-                items_data = request.json()
-                categories.append(items_data)
-            except JSONDecodeError as e:
-                print(e, request)
-                continue
+            request_url = self.poewatch_get_url.format(category)
+            category_items_data = self._request(request_url, "GET")
+            if category_items_data:
+                categories.append(category_items_data)
+
         self.data_provider.generate_file(self.filename, categories)
