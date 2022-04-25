@@ -33,15 +33,15 @@ class PoeFlipper:
     def _request(self, url, method: str, params: Optional[dict] = None, data: Optional[dict] = None) -> Union[dict, bool]:
         try:
             if method == "GET":
-                stats_request = requests.get(url, params=params, headers=POETRADE_HEADERS)
+                request = requests.get(url, params=params, headers=POETRADE_HEADERS)
             else:
-                stats_request = requests.post(url, data=data, headers=POETRADE_HEADERS)
-            stats_data = stats_request.json()
+                request = requests.post(url, data=data, headers=POETRADE_HEADERS)
+            request_data = request.json()
         except JSONDecodeError as e:
             print(f"Exception in request to {url}\nAdditional information: {e}")
             return False
 
-        return stats_data
+        return request_data
 
     def convert_items_data(self, parsed_items_data: List[dict]) -> List[Item]:
 
@@ -173,4 +173,4 @@ class PoeFlipper:
             if category_items_data:
                 categories.append(category_items_data)
 
-        self.data_provider.generate_file(categories)
+        self.data_provider.generate_file(categories, custom_filename)

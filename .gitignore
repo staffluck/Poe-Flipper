@@ -1,4 +1,5 @@
 Pipfile
 Pipfile.lock
 .vscode/
-item_table.xlsx
+*.xlsx
+*.json

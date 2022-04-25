@@ -38,8 +38,8 @@ class XlsxDataProvider(BaseDataProvider):
     file_format = "xlsx"
     base_filename = "item_table.xlsx"
 
-    def generate_file(self, categories: List[dict]) -> None:
-        workbook = xlsxwriter.Workbook(self.filename)
+    def generate_file(self, categories: List[dict], custom_filename: Optional[str] = None) -> None:
+        workbook = xlsxwriter.Workbook(self.filename if not custom_filename else custom_filename)
         ws = workbook.add_worksheet()
         ws.write(0, 0, "Category")
         ws.write(0, 1, "Group")
