@@ -1,6 +1,6 @@
 import argparse
 import os
-from flipper import PoeFlipper
+from core.flipper import PoeFlipper
 
 
 ALL_POSSIBLE_CATEGORIES = ['accessory', 'armour', 'weapon', 'jewel', 'uniqueMap']
@@ -33,7 +33,7 @@ def main():
             print("{} Not found".format(args.import_file))
             return 0
         custom_file = args.import_file
-    flipper = PoeFlipper("Expedition", custom_file)
+    flipper = PoeFlipper("Archnemesis", filename=custom_file)
 
     if args.custom_filename and not args.generate_table:
         print("-cf works only in pair with --generate-table(-gt)")

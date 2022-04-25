@@ -1,18 +1,20 @@
 import requests
-import xlsxwriter
 import os
 import openpyxl
 from json.decoder import JSONDecodeError
 from typing import List
+
+from core.data_providers import BaseDateProvider, XlsxDataProvider
 
 POETRADE_HEADERS = {'User-Agent': 'agent47daun@gmail.com'}
 
 
 class PoeFlipper:
 
-    def __init__(self, league, filename="item_table.xlsx"):
-        self.league = league
-        self.filename = filename
+    def __init__(self, league: str, data_provider: BaseDateProvider = XlsxDataProvider, filename="item_table.xlsx"):
+        self.league: str = league
+        self.filename: str = filename
+        self.data_provider: BaseDateProvider = data_provider
 
         self.parsed_items_data = []
         self.result_items_data = []
@@ -157,46 +159,19 @@ class PoeFlipper:
 
         self.parse_file()
         # for item in self.result_items_data:
-        #     zxc = self.check_price(item)
+            # zxc = self.check_price(item)
+            # print(item)
 
     def generate_items_table(self, categories_to_flip, custom_filename=None) -> None:
-        workbook = xlsxwriter.Workbook("item_table.xlsx" if not custom_filename else "{}.xlsx".format(custom_filename))
-        ws = workbook.add_worksheet()
 
-        row = 1
+        categories = []
         for category in categories_to_flip:
             try:
                 request = requests.get(self.poewatch_get_url.format(category))
                 items_data = request.json()
+                categories.append(items_data)
             except JSONDecodeError as e:
                 print(e, request)
                 continue
 
-            ws.write(0, 0, "Category")
-            ws.write(0, 1, "Group")
-            ws.write(0, 2, "Name")
-            ws.write(0, 3, "Explicits")
-            ws.write(0, 4, "Implicits")
-            ws.write(0, 5, "Mean")
-
-            column = 0
-            for item in items_data:
-                explicits = ""
-                implicits = ""
-                if item.get('explicits'):
-                    for i in item['explicits']:
-                        explicits += "{}&".format(i)
-                if item.get('implicits'):
-                    for i in item['implicits']:
-                        implicits += "{}&".format(i)
-
-                ws.write(row, column, item['category'])
-                ws.write(row, column+1, item['group'])
-                ws.write(row, column+2, item['name'])
-                ws.write(row, column+3, explicits)
-                ws.write(row, column+4, implicits)
-                ws.write(row, column+5, item['mean'])
-                row += 1
-            row += 1
-
-        workbook.close()
+        self.data_provider.generate_file(self.filename, categories)
