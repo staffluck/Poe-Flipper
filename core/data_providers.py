@@ -1,5 +1,5 @@
-from abc import ABCMeta, abstractstaticmethod
-from typing import List
+from abc import ABCMeta, abstractmethod
+from typing import List, Optional
 
 import openpyxl
 import xlsxwriter
@@ -20,22 +20,26 @@ class RegistryBase(ABCMeta):
         return dict(cls.REGISTRY)
 
 
-class BaseDateProvider(metaclass=RegistryBase):
+class BaseDataProvider(metaclass=RegistryBase):
+    base_filename = "base_filename.base"
 
-    @abstractstaticmethod
-    def generate_file(filename: str, categories: List[dict]) -> None:
+    def __init__(self, filename: Optional[str] = None):
+        self.filename = filename if filename else self.base_filename
+
+    @abstractmethod
+    def generate_file(categories: List[dict]) -> None:
         pass
 
-    @abstractstaticmethod
-    def parse_file(filename: str) -> List:
+    @abstractmethod
+    def parse_file() -> List:
         pass
 
-class XlsxDataProvider(BaseDateProvider):
+class XlsxDataProvider(BaseDataProvider):
     file_format = "xlsx"
+    base_filename = "item_table.xlsx"
 
-    @staticmethod
-    def generate_file(filename: str, categories: List[dict]) -> None:
-        workbook = xlsxwriter.Workbook(filename)
+    def generate_file(self, categories: List[dict]) -> None:
+        workbook = xlsxwriter.Workbook(self.filename)
         ws = workbook.add_worksheet()
         ws.write(0, 0, "Category")
         ws.write(0, 1, "Group")
@@ -68,9 +72,8 @@ class XlsxDataProvider(BaseDateProvider):
 
         workbook.close()
 
-    @staticmethod
-    def parse_file(filename: str) -> List:
-        workbook = openpyxl.load_workbook(filename)
+    def parse_file(self) -> List:
+        workbook = openpyxl.load_workbook(self.filename)
         sheet = workbook.active
 
         parsed_items_data = []

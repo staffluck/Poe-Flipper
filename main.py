@@ -11,15 +11,18 @@ def init_argparse() -> argparse.ArgumentParser:
         usage="%(prog)s [OPTION]...",
     )
     parser.add_argument(
-        "-gt", "--generate-table", nargs="+",
+        "-gf", "--generate-file", nargs="+",
         help="Generate tables with selected categories. List of categories: https://api.poe.watch/categories. Default armour accessory weapon",
         type=str,
     )
     parser.add_argument("-cf", "--custom-filename",
-                        help="Work only in pair with --generate-table(-gt). Provides custom filename for generated table.",
+                        help="Work only in pair with --generate-file(-gf). Provides custom filename for generated file.",
+                        )
+    parser.add_argument("-f", "--format",
+                        help="Specify file format for generated file",
                         )
     parser.add_argument('-if', '--import-file',
-                        help="Use custom excel table. File must be in the same folder as script")
+                        help="Use custom file. File must be in the same folder as script")
     return parser
 
 
@@ -31,22 +34,23 @@ def main():
     if args.import_file:
         if not os.path.isfile(args.import_file):
             print("{} Not found".format(args.import_file))
-            return 0
+            raise SystemExit()
         custom_file = args.import_file
-    flipper = PoeFlipper("Archnemesis", filename=custom_file)
+    file_format = args.format if args.format else "xlsx"
+    flipper = PoeFlipper("Archnemesis", file_format, custom_filename=custom_file)
 
-    if args.custom_filename and not args.generate_table:
+    if args.custom_filename and not args.generate_file:
         print("-cf works only in pair with --generate-table(-gt)")
-        return 0
-    if args.generate_table:
+        raise SystemExit()
+    if args.generate_file:
         custom_filename = "None"
-        for arg in args.generate_table:
+        for arg in args.generate_file:
             if arg not in ALL_POSSIBLE_CATEGORIES:
                 print("{} category not supported. Skip..".format(arg))
-                args.generate_table.remove(arg)
+                args.generate_file.remove(arg)
         if args.custom_filename:
             custom_filename = args.custom_filename[0]
-        flipper.generate_items_table(args.generate_table, custom_filename)
+        flipper.generate_items_file(args.generate_file, custom_filename)
 
     flipper.start()
 

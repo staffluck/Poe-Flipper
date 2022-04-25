@@ -3,7 +3,7 @@ import os
 from json.decoder import JSONDecodeError
 from typing import List, Optional, Tuple, Union
 
-from core.data_providers import BaseDateProvider, XlsxDataProvider
+from core.data_providers import BaseDataProvider, XlsxDataProvider, RegistryBase
 from core.models import Item
 
 POETRADE_HEADERS = {'User-Agent': 'agent47daun@gmail.com'}
@@ -11,10 +11,9 @@ POETRADE_HEADERS = {'User-Agent': 'agent47daun@gmail.com'}
 
 class PoeFlipper:
 
-    def __init__(self, league: str, data_provider: Optional[BaseDateProvider] = XlsxDataProvider, filename="item_table.xlsx"):
+    def __init__(self, league: str, file_format: str, custom_filename: Optional[str] = None):
         self.league: str = league
-        self.filename: str = filename
-        self.data_provider: BaseDateProvider = data_provider
+        self.data_provider: BaseDataProvider = self.get_provider(file_format, custom_filename)
 
         self.items: List[Item] = []
 
@@ -22,6 +21,14 @@ class PoeFlipper:
         self.poetrade_search = "https://www.pathofexile.com/api/trade/search/{}".format(league)
         self.poetrade_fetch = "https://www.pathofexile.com/api/trade/fetch/{}?query={}"
         self.poetrade_stats = "https://www.pathofexile.com/api/trade/data/stats"
+
+    def get_provider(self, file_format: str, custom_filename: Optional[str] = None) -> BaseDataProvider:
+        registered_providers = RegistryBase.get_registry()
+        provider = registered_providers.get(file_format)
+        if not provider:
+            raise KeyError(f"Invalid file format. Valid formats: {registered_providers}")
+
+        return provider(filename=custom_filename)
 
     def _request(self, url, method: str, params: Optional[dict] = None, data: Optional[dict] = None) -> Union[dict, bool]:
         try:
@@ -86,7 +93,7 @@ class PoeFlipper:
 
         stats_data = self._request(self.poetrade_stats, "GET")
         if not stats_data:
-            raise SystemExit
+            raise SystemExit()
 
         converted_stats_mods = {}
         stats = stats_data['result']
@@ -126,7 +133,7 @@ class PoeFlipper:
         return result_items_data
 
     def parse_file(self) -> None:
-        parsed_items_data = self.data_provider.parse_file(self.filename)
+        parsed_items_data = self.data_provider.parse_file()
         result_items_data = self.convert_items_data(parsed_items_data)
         self.items.extend(result_items_data)
 
@@ -146,11 +153,11 @@ class PoeFlipper:
     #         pass
 
     def start(self) -> None:
-        if os.path.isfile(self.filename):
-            print("Found {} table. Processing..".format(self.filename))
+        if os.path.isfile(self.data_provider.filename):
+            print("Found {} file. Processing..".format(self.data_provider.filename))
         else:
-            print("File not found. Generating table.. ")
-            self.generate_items_table(['armour', 'accessory', 'weapon'])
+            print("File not found. Generating file.. ")
+            self.generate_items_file(['armour', 'accessory', 'weapon'])
             return self.start()
 
         self.parse_file()
@@ -158,7 +165,7 @@ class PoeFlipper:
             # zxc = self.check_price(item)
             print(item)
 
-    def generate_items_table(self, categories_to_flip, custom_filename=None) -> None:
+    def generate_items_file(self, categories_to_flip: List[str], custom_filename: Optional[str] = None) -> None:
         categories = []
         for category in categories_to_flip:
             request_url = self.poewatch_get_url.format(category)
@@ -166,4 +173,4 @@ class PoeFlipper:
             if category_items_data:
                 categories.append(category_items_data)
 
-        self.data_provider.generate_file(self.filename, categories)
+        self.data_provider.generate_file(categories)
