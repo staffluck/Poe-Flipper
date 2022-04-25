@@ -2,9 +2,10 @@ import requests
 import os
 import openpyxl
 from json.decoder import JSONDecodeError
-from typing import List
+from typing import List, Tuple
 
 from core.data_providers import BaseDateProvider, XlsxDataProvider
+from core.models import Item
 
 POETRADE_HEADERS = {'User-Agent': 'agent47daun@gmail.com'}
 
@@ -16,18 +17,17 @@ class PoeFlipper:
         self.filename: str = filename
         self.data_provider: BaseDateProvider = data_provider
 
-        self.parsed_items_data = []
-        self.result_items_data = []
+        self.items: List[Item] = []
 
         self.poewatch_get_url = "https://api.poe.watch/get?category={}&league={league}".format("{}", league=league)
         self.poetrade_search = "https://www.pathofexile.com/api/trade/search/{}".format(league)
         self.poetrade_fetch = "https://www.pathofexile.com/api/trade/fetch/{}?query={}"
         self.poetrade_stats = "https://www.pathofexile.com/api/trade/data/stats"
 
-    def convert_items_data(self) -> None:
+    def convert_items_data(self, parsed_items_data: List[dict]) -> None:
 
         # Converting items stats into data like POETRADE_ITEM_ID:ROLL_RANGE
-        def convert_mod(mod: str) -> List:
+        def convert_mod(mod: str) -> Tuple:
             try:
                 if mod.startswith("(") or mod.startswith("+("):
                     mod_raw = mod.split("(")[1].split(")")
@@ -57,7 +57,7 @@ class PoeFlipper:
                     mod_text = "#" + mod_raw[1]
             except IndexError:
                 #  Handling mods without range
-                return [False, False]
+                return (False, False)
 
             try:
                 if converted_stats_mods.get(mod_text):
@@ -68,9 +68,9 @@ class PoeFlipper:
                     mod_id = converted_stats_mods[mod_text[1:]]
             except KeyError:
                 #  Handling mods that have no POETRADE_ITEM_ID conversion
-                return [False, False]
+                return (False, False)
 
-            return mod_id, mod_range
+            return (mod_id, mod_range)
 
         try:
             stats_request = requests.get(self.poetrade_stats, headers=POETRADE_HEADERS)
@@ -85,7 +85,8 @@ class PoeFlipper:
             for b in stat['entries']:
                 converted_stats_mods[b['text']] = b['id']
 
-        for item in self.parsed_items_data:
+        result_items_data = []
+        for item in parsed_items_data:
             links_price = False  # Price depends on links(6-links)
             explicits_converted = {}  # Price depends on explicit rolls
             implicits_converted = {}  # Price depends on implicit rolls if item corrupted
@@ -109,30 +110,16 @@ class PoeFlipper:
             if item['group'] == "bodyarmours":
                 links_price = True
 
-            self.result_items_data.append({
-                "category": item['category'],
-                "group": item['group'],
-                "name": item['name'],
-                "mean": item['mean'],
-                "explicits": explicits_converted,
-                "implicits": implicits_converted,
-                "depends_on_links": links_price,
-            })
+            del item["explicits"]
+            del item["implicits"]
+            item_model = Item(explicits=explicits_converted, implicits=implicits_converted, depends_on_links=links_price, **item)
+            result_items_data.append(item_model)
+        return result_items_data
 
     def parse_file(self) -> None:
-        workbook = openpyxl.load_workbook(self.filename)
-        sheet = workbook.active
-
-        for row in sheet.iter_rows(min_row=2, max_col=6):
-            self.parsed_items_data.append({
-                "category": row[0].value,
-                "group": row[1].value,
-                "name": row[2].value,
-                "explicits": row[3].value,
-                "implicits": row[4].value,
-                "mean": row[5].value
-            })
-        self.convert_items_data()
+        parsed_items_data = self.data_provider.parse_file(self.filename)
+        result_items_data = self.convert_items_data(parsed_items_data)
+        self.items.extend(result_items_data)
 
     # def check_price(self, item) -> None:
     #     search_query = {
@@ -158,12 +145,11 @@ class PoeFlipper:
             return self.start()
 
         self.parse_file()
-        # for item in self.result_items_data:
+        for item in self.items:
             # zxc = self.check_price(item)
-            # print(item)
+            print(item)
 
     def generate_items_table(self, categories_to_flip, custom_filename=None) -> None:
-
         categories = []
         for category in categories_to_flip:
             try:
@@ -173,5 +159,4 @@ class PoeFlipper:
             except JSONDecodeError as e:
                 print(e, request)
                 continue
-
         self.data_provider.generate_file(self.filename, categories)

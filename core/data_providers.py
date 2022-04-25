@@ -27,7 +27,7 @@ class BaseDateProvider(metaclass=RegistryBase):
         pass
 
     @abstractstaticmethod
-    def parse_file():
+    def parse_file(filename: str) -> List:
         pass
 
 class XlsxDataProvider(BaseDateProvider):
@@ -69,12 +69,13 @@ class XlsxDataProvider(BaseDateProvider):
         workbook.close()
 
     @staticmethod
-    def parse_file(self):
-        workbook = openpyxl.load_workbook(self.filename)
+    def parse_file(filename: str) -> List:
+        workbook = openpyxl.load_workbook(filename)
         sheet = workbook.active
 
+        parsed_items_data = []
         for row in sheet.iter_rows(min_row=2, max_col=6):
-            self.parsed_items_data.append({
+            parsed_items_data.append({
                 "category": row[0].value,
                 "group": row[1].value,
                 "name": row[2].value,
@@ -82,3 +83,5 @@ class XlsxDataProvider(BaseDateProvider):
                 "implicits": row[4].value,
                 "mean": row[5].value
             })
+
+        return parsed_items_data
